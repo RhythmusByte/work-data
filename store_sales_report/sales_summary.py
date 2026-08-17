@@ -3,51 +3,61 @@ from __future__ import annotations
 import argparse
 import glob
 from pathlib import Path
-from typing import Iterable
 
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Alignment, Font, PatternFill
 
 
-HEADER_CANDIDATES = [
-    "total rate",
-    "total rate (inr)",
-    "sale amount",
-    "sales amount",
-    "amount",
-    "total",
-    "net total",
-    "grand total",
-    "sales",
+HEADER_ROW = 1
+DATA_START_ROW = 2
+SALES_COLUMN = 8  # Column H
+EXPECTED_HEADERS = [
+    "Date",
+    "Bill No",
+    "Customer Name",
+    "Customer Mobile No",
+    "Payment Method",
+    "Sales Via",
+    "Coupon Discount",
+    "Total Rate(INR)",
 ]
-
-HEADER_SCAN_LIMIT = 20
-COL_SCAN_LIMIT = 20
 
 
 def normalize_text(value) -> str:
-    return str(value or "").strip().lower()
+    return str(value or "").strip().replace(" ", "").lower()
 
 
-def find_header_row(ws) -> int:
-    for row_idx in range(1, min(ws.max_row, HEADER_SCAN_LIMIT) + 1):
-        row_values = [normalize_text(ws.cell(row_idx, col_idx).value) for col_idx in range(1, min(ws.max_column, COL_SCAN_LIMIT) + 1)]
-        if any(value in HEADER_CANDIDATES for value in row_values):
-            return row_idx
-    raise ValueError("Could not find a header row with a sales/amount column.")
+def collect_files(file_args: list[str], output_name: str) -> list[Path]:
+    if file_args:
+        paths = [Path(arg).expanduser().resolve() for arg in file_args]
+    else:
+        paths = [Path(path).resolve() for path in glob.glob("*.xlsx")]
 
-
-def find_amount_column(ws, header_row: int) -> int:
-    for col_idx in range(1, min(ws.max_column, COL_SCAN_LIMIT) + 1):
-        header = normalize_text(ws.cell(header_row, col_idx).value)
-        if not header:
+    result = []
+    for path in paths:
+        if not path.is_file():
             continue
-        if header in HEADER_CANDIDATES:
-            return col_idx
-        for candidate in HEADER_CANDIDATES:
-            if candidate in header:
-                return col_idx
-    raise ValueError("Could not identify the sales amount column.")
+        if path.suffix.lower() != ".xlsx":
+            continue
+        if path.name.startswith("~$"):
+            continue
+        if path.name == output_name:
+            continue
+        result.append(path)
+
+    return sorted(result)
+
+
+def validate_layout(ws, source_name: str) -> None:
+    headers = [ws.cell(HEADER_ROW, col).value for col in range(1, len(EXPECTED_HEADERS) + 1)]
+    normalized_headers = [normalize_text(value) for value in headers]
+    normalized_expected = [normalize_text(value) for value in EXPECTED_HEADERS]
+
+    if normalized_headers != normalized_expected:
+        raise ValueError(
+            f"{source_name}: unexpected header row. "
+            f"Expected {EXPECTED_HEADERS}, found {headers}."
+        )
 
 
 def to_number(value):
@@ -56,42 +66,31 @@ def to_number(value):
     if isinstance(value, (int, float)):
         return float(value)
     text = str(value).replace(",", "").strip()
+    if not text:
+        return None
     try:
         return float(text)
     except ValueError:
         return None
 
 
-def sum_sales_file(path: Path) -> float:
+def sum_store_sales(path: Path) -> float:
     workbook = openpyxl.load_workbook(path, data_only=True)
     worksheet = workbook[workbook.sheetnames[0]]
-
-    header_row = find_header_row(worksheet)
-    amount_col = find_amount_column(worksheet, header_row)
+    validate_layout(worksheet, path.name)
 
     total = 0.0
-    for row_idx in range(header_row + 1, worksheet.max_row + 1):
-        value = to_number(worksheet.cell(row_idx, amount_col).value)
+    for row_idx in range(DATA_START_ROW, worksheet.max_row + 1):
+        value = to_number(worksheet.cell(row_idx, SALES_COLUMN).value)
         if value is not None:
             total += value
-
     return total
 
 
-def collect_files(file_args: list[str]) -> list[Path]:
-    if file_args:
-        paths = [Path(item).expanduser().resolve() for item in file_args]
-    else:
-        paths = [Path(p).resolve() for p in glob.glob("*.xlsx")]
-
-    paths = [p for p in paths if p.suffix.lower() == ".xlsx" and p.is_file() and not p.name.startswith("~$")]
-    return sorted(paths)
-
-
-def write_summary_workbook(rows: Iterable[tuple[str, str, float]], output_path: Path) -> None:
+def write_summary_workbook(rows: list[tuple[str, str, float]], output_path: Path) -> None:
     workbook = openpyxl.Workbook()
     worksheet = workbook.active
-    worksheet.title = "Store Sales"
+    worksheet.title = "Store Sales Summary"
 
     headers = ["Store Name", "Source File", "Total Sales"]
     worksheet.append(headers)
@@ -103,16 +102,16 @@ def write_summary_workbook(rows: Iterable[tuple[str, str, float]], output_path: 
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center")
 
-    number_format = "#,##0.00"
-    grand_total = 0.0
+    total_sales_all_stores = 0.0
     for store_name, source_file, total_sales in rows:
         worksheet.append([store_name, source_file, total_sales])
-        grand_total += total_sales
+        total_sales_all_stores += total_sales
 
     total_row = worksheet.max_row + 1
     worksheet.cell(total_row, 1, "TOTAL")
-    worksheet.cell(total_row, 3, grand_total)
+    worksheet.cell(total_row, 3, total_sales_all_stores)
 
+    number_format = "#,##0.00"
     for row_idx in range(2, total_row + 1):
         worksheet.cell(row_idx, 3).number_format = number_format
 
@@ -120,10 +119,8 @@ def write_summary_workbook(rows: Iterable[tuple[str, str, float]], output_path: 
         cell.font = Font(name="Arial", size=11, bold=True)
         cell.fill = PatternFill(fill_type="solid", fgColor="FFE6ECF4")
 
-    worksheet.cell(total_row, 3).number_format = number_format
-
     worksheet.column_dimensions["A"].width = 24
-    worksheet.column_dimensions["B"].width = 40
+    worksheet.column_dimensions["B"].width = 34
     worksheet.column_dimensions["C"].width = 16
     worksheet.freeze_panes = "A2"
 
@@ -132,7 +129,7 @@ def write_summary_workbook(rows: Iterable[tuple[str, str, float]], output_path: 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Calculate total sales for multiple store Excel files."
+        description="Calculate total sales for each store workbook and the overall total."
     )
     parser.add_argument(
         "files",
@@ -143,32 +140,33 @@ def main() -> int:
         "-o",
         "--output",
         default="store_sales_summary.xlsx",
-        help="Output workbook name.",
+        help="Name of the summary workbook to create.",
     )
     args = parser.parse_args()
 
-    paths = collect_files(args.files)
+    output_name = Path(args.output).name
+    paths = collect_files(args.files, output_name)
     if not paths:
         print("No Excel files found.")
         return 1
 
     results: list[tuple[str, str, float]] = []
-    skipped: list[tuple[str, str]] = []
+    failed: list[tuple[str, str]] = []
 
     for path in paths:
-        store_name = path.stem
         try:
-            total_sales = sum_sales_file(path)
-        except Exception as exc:  # noqa: BLE001 - report and continue for batch inputs
-            skipped.append((path.name, str(exc)))
+            total_sales = sum_store_sales(path)
+        except Exception as exc:
+            failed.append((path.name, str(exc)))
             continue
 
+        store_name = path.stem
         results.append((store_name, path.name, total_sales))
         print(f"{store_name}: {total_sales:,.2f}")
 
     if not results:
         print("No files could be processed.")
-        for filename, reason in skipped:
+        for filename, reason in failed:
             print(f"Skipped {filename}: {reason}")
         return 1
 
@@ -179,9 +177,9 @@ def main() -> int:
     write_summary_workbook(results, output_path)
     print(f"Saved summary workbook: {output_path}")
 
-    if skipped:
+    if failed:
         print("\nSkipped files:")
-        for filename, reason in skipped:
+        for filename, reason in failed:
             print(f"- {filename}: {reason}")
 
     return 0

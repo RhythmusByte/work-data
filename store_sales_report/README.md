@@ -1,18 +1,39 @@
 # Store Sales Report
 
-This small program reads multiple Excel files, treats each file name as a store name, sums the sales column in each workbook, and writes a summary workbook.
+This program is tailored to the four store sales workbooks you uploaded.
 
-## Usage
+## Expected layout
 
-From this directory or the repo root:
+Each workbook should have:
+
+- One sheet
+- Header row on row 1
+- Sales values in column `H`
+- The exact headers:
+  - `Date`
+  - `Bill No`
+  - `Customer Name`
+  - `Customer Mobile No`
+  - `Payment Method`
+  - `Sales Via`
+  - `Coupon Discount`
+  - `Total Rate(INR)`
+
+## What it does
+
+- Uses each Excel file name as the store name
+- Sums the sales in column `H`
+- Prints each store total and the grand total
+- Writes `store_sales_summary.xlsx` with a row for each store
+
+## Run
 
 ```bash
-python store_sales_report/sales_summary.py store1.xlsx store2.xlsx store3.xlsx store4.xlsx
+python store_sales_report/sales_summary.py
 ```
 
-If you omit file arguments, it will look for all `.xlsx` files in the current directory.
+You can also pass the files explicitly:
 
-## Output
-
-- Console output with each store total and the grand total
-- `store_sales_summary.xlsx` with one row per store and a final total row
+```bash
+python store_sales_report/sales_summary.py Ayoor.xlsx Ettumanoor.xlsx Ulloor.xlsx "World-Market.xlsx"
+```
