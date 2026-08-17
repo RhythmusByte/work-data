@@ -6,6 +6,7 @@ __pycache__/
 # Store sales input and generated files
 store_sales_report/*.xlsx
 store_sales_report/.~lock.*#
+**/excel/
 
 # Salary report input and generated files
 salary_report/*.xlsx

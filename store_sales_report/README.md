@@ -23,8 +23,10 @@ Each workbook should have:
 
 - Uses each Excel file name as the store name
 - Sums the sales in column `H`
+- Adds `Date From` and `Date To` details for each store
+- Formats totals with the rupee symbol
 - Prints each store total and the grand total
-- Writes `store_sales_summary.xlsx` with a row for each store
+- Writes `store_sales_summary.xlsx` with a row for each store and a per-store detail sheet
 
 ## Run
 
