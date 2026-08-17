@@ -4,11 +4,11 @@ Small Excel reporting tools for shop and supermarket data.
 
 ## What’s in this repo
 
-- [`expense_report/expense_statement.py`](../expense_report/expense_statement.py): builds an expense summary workbook from one or more `expenses_report*.xlsx` files.
-- [`salary_report/salary_summary.py`](../salary_report/salary_summary.py): filters expense rows containing `salary`, asks you to confirm each store name, and generates a salary-only statement with one sheet per store.
-- [`pnl_report/pnl_statement.py`](../pnl_report/pnl_statement.py): builds a profit and loss workbook from sales, purchase, expense, and purchase-return reports.
-- [`store_sales_report/sales_summary.py`](../store_sales_report/sales_summary.py): sums sales for multiple store workbooks and writes a combined summary.
-- [`supermarket/`](../supermarket): notebook, sample workbook, charts, and JSON sales data for supermarket analysis.
+- [`expense_report/expense_statement.py`](./expense_report/expense_statement.py): builds an expense summary workbook from one or more `expenses_report*.xlsx` files.
+- [`salary_report/salary_summary.py`](./salary_report/salary_summary.py): filters expense rows containing `salary`, asks you to confirm each store name, and generates a salary-only statement with one sheet per store.
+- [`pnl_report/pnl_statement.py`](./pnl_report/pnl_statement.py): builds a profit and loss workbook from sales, purchase, expense, and purchase-return reports.
+- [`store_sales_report/sales_summary.py`](./store_sales_report/sales_summary.py): sums sales for multiple store workbooks and writes a combined summary.
+- [`supermarket/`](./supermarket): notebook, sample workbook, charts, and JSON sales data for supermarket analysis.
 
 ## Requirements
 
