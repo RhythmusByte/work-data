@@ -32,5 +32,5 @@ python salary_report/salary_summary.py
 You can also pass files explicitly:
 
 ```bash
-python salary_report/salary_summary.py Ayoor.xlsx Ettumanoor.xlsx Ulloor.xlsx "World-Market.xlsx"
+python salary_report/salary_summary.py Store1.xlsx Store2.xlsx Store3.xlsx "Store4.xlsx"
 ```
