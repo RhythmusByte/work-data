@@ -1,6 +1,6 @@
 # Store Sales Report
 
-This program is tailored to the four store sales workbooks you uploaded.
+This program is tailored to the four store sales workbooks.
 
 ## Expected layout
 
@@ -35,5 +35,5 @@ python store_sales_report/sales_summary.py
 You can also pass the files explicitly:
 
 ```bash
-python store_sales_report/sales_summary.py Ayoor.xlsx Ettumanoor.xlsx Ulloor.xlsx "World-Market.xlsx"
+python store_sales_report/sales_summary.py Store1.xlsx Store2.xlsx Store3.xlsx "Store4.xlsx"
 ```
