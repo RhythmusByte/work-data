@@ -1,0 +1,9 @@
+# Python bytecode and caches
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Store sales input and generated files
+store_sales_report/*.xlsx
+store_sales_report/.~lock.*#
+
