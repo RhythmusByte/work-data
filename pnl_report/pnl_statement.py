@@ -63,6 +63,7 @@ def identify_report(ws):
         return "purchase_return", header_row
     raise ValueError("Unrecognised report layout - check the file's column headers.")
 
+
 sales_rows, purchase_rows, expense_rows, purchase_return_rows = [], [], [], []
 
 for path in uploaded_paths:
