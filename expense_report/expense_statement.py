@@ -58,6 +58,7 @@ def parse_any_date(v):
     except (ValueError, TypeError):
         return None
 
+
 # ---------------------------------------------------------------------------
 # 2. Load every expense row from every uploaded file
 # ---------------------------------------------------------------------------
@@ -198,11 +199,10 @@ tot_pct.font = Font(name=FONT_NAME, size=11, bold=True)
 for c in range(2, 6):
     ws_sum.cell(total_row, c).fill = PatternFill(fill_type="solid", fgColor=GREY_FILL)
 
-# cross-check note: this should equal the "total expenses" figure printed near
-# the top of the raw report (e.g. cell A3 in the sample file). If it doesn't,
-# some rows were skipped, check the console output above for a row count.
-ws_sum.cell(total_row + 2, 2, "Cross-check this TOTAL against the figure printed "
-            "near the top of the raw expense report file.")
+# cross-check note: this should equal the total salary figure printed near the
+# top of the raw report if the source report provides one.
+ws_sum.cell(total_row + 2, 2, "Cross-check this TOTAL against the salary figure "
+            "printed near the top of the raw expense report file.")
 ws_sum.cell(total_row + 2, 2).font = Font(name=FONT_NAME, size=9, italic=True, color="FF888888")
 
 out_name = f"Expense_Summary_{period_start.strftime('%Y-%m-%d')}_to_{period_end.strftime('%Y-%m-%d')}.xlsx"
