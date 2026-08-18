@@ -4,7 +4,7 @@ import argparse
 import glob
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -36,6 +36,7 @@ class StoreReport:
     period_start: datetime | None
     period_end: datetime | None
     sheet_name: str
+    category_totals: dict[str, list] = field(default_factory=dict)
 
 
 def normalize_text(value) -> str:
@@ -187,6 +188,13 @@ def extract_store_report(path: Path, store_name: str, sheet_name: str) -> StoreR
     period_start = min(dates) if dates else None
     period_end = max(dates) if dates else None
 
+    category_totals: dict[str, list] = {}
+    for row in salary_rows:
+        category_name = str(row[1] or "").strip() or "Uncategorised"
+        entry = category_totals.setdefault(category_name, [0, 0.0])
+        entry[0] += 1
+        entry[1] += row[2] or 0
+
     return StoreReport(
         store_name=store_name,
         source_file=path.name,
@@ -195,6 +203,7 @@ def extract_store_report(path: Path, store_name: str, sheet_name: str) -> StoreR
         period_start=period_start,
         period_end=period_end,
         sheet_name=sheet_name,
+        category_totals=category_totals,
     )
 
 
@@ -218,8 +227,46 @@ def write_store_sheet(ws, report: StoreReport) -> None:
     ws["B6"] = f"Total salary given (INR): {report.total_salary:,.2f}"
     ws["B6"].font = Font(name="Arial", size=11, bold=True)
 
+    cat_header_row = 8
+    ws.cell(cat_header_row, 2, "Category Breakdown")
+    ws.cell(cat_header_row, 2).font = Font(name="Arial", size=11, bold=True, color=TITLE_FILL)
+
+    cat_table_header_row = cat_header_row + 1
+    cat_headers = ["Category", "Rows", "Total (INR)"]
+    for col_offset, header in enumerate(cat_headers):
+        col_idx = 2 + col_offset
+        cell = ws.cell(cat_table_header_row, col_idx, header)
+        cell.font = Font(name="Arial", size=10, bold=True, color="FFFFFFFF")
+        cell.fill = PatternFill(fill_type="solid", fgColor=TITLE_FILL)
+        cell.alignment = Alignment(horizontal="center")
+
+    sorted_categories = sorted(
+        report.category_totals.items(), key=lambda item: item[1][1], reverse=True
+    )
+    cat_row = cat_table_header_row + 1
+    for category_name, (rows_count, category_total) in sorted_categories:
+        ws.cell(cat_row, 2, category_name)
+        ws.cell(cat_row, 3, rows_count)
+        ws.cell(cat_row, 4, category_total)
+        ws.cell(cat_row, 4).number_format = NUMFMT
+        cat_row += 1
+
+    if sorted_categories:
+        ws.cell(cat_row, 2, "TOTAL")
+        ws.cell(cat_row, 3, len(report.salary_rows))
+        ws.cell(cat_row, 4, report.total_salary)
+        ws.cell(cat_row, 4).number_format = NUMFMT
+        for col_idx in range(2, 5):
+            ws.cell(cat_row, col_idx).font = Font(name="Arial", size=10, bold=True)
+            ws.cell(cat_row, col_idx).fill = PatternFill(fill_type="solid", fgColor=LIGHT_FILL)
+        cat_row += 1
+    else:
+        ws.cell(cat_row, 2, "No salary categories found.")
+        ws.cell(cat_row, 2).font = Font(name="Arial", size=10, italic=True, color="FF888888")
+        cat_row += 1
+
+    header_row = cat_row + 1
     headers = ["Date", "Expense Category", "Amount", "Notes"]
-    header_row = 8
     for col_idx, header in enumerate(headers, start=2):
         cell = ws.cell(header_row, col_idx, header)
         cell.font = Font(name="Arial", size=11, bold=True, color="FFFFFFFF")
@@ -249,7 +296,7 @@ def write_store_sheet(ws, report: StoreReport) -> None:
         ws.cell(header_row + 1, 2, "No salary rows were found in this file.")
         ws.cell(header_row + 1, 2).font = Font(name="Arial", size=10, italic=True, color="FF888888")
 
-    ws.freeze_panes = "B9"
+    ws.freeze_panes = f"B{header_row + 1}"
 
 
 def write_summary_sheet(ws, reports: list[StoreReport]) -> None:
@@ -298,11 +345,74 @@ def write_summary_sheet(ws, reports: list[StoreReport]) -> None:
     ws.freeze_panes = "B6"
 
 
+def write_category_summary_sheet(ws, reports: list[StoreReport]) -> None:
+    category_names: list[str] = []
+    seen: set[str] = set()
+    category_grand_totals: dict[str, float] = {}
+    for report in reports:
+        for category_name, (_, category_total) in report.category_totals.items():
+            category_grand_totals[category_name] = category_grand_totals.get(category_name, 0.0) + category_total
+            if category_name not in seen:
+                seen.add(category_name)
+                category_names.append(category_name)
+
+    category_names.sort(key=lambda name: category_grand_totals[name], reverse=True)
+
+    ws.column_dimensions["B"].width = 30
+    for idx in range(len(reports)):
+        ws.column_dimensions[get_column_letter(3 + idx)].width = 18
+    ws.column_dimensions[get_column_letter(3 + len(reports))].width = 18
+
+    ws["B2"] = "Category Summary"
+    ws["B2"].font = Font(name="Arial", size=14, bold=True, color=TITLE_FILL)
+    ws["B3"] = "Salary total by category, per store"
+    ws["B3"].font = Font(name="Arial", size=10, color="FF555555")
+
+    header_row = 5
+    ws.cell(header_row, 2, "Category")
+    for idx, report in enumerate(reports):
+        ws.cell(header_row, 3 + idx, report.store_name)
+    grand_total_col = 3 + len(reports)
+    ws.cell(header_row, grand_total_col, "Grand Total (INR)")
+    for col_idx in range(2, grand_total_col + 1):
+        cell = ws.cell(header_row, col_idx)
+        cell.font = Font(name="Arial", size=10, bold=True, color="FFFFFFFF")
+        cell.fill = PatternFill(fill_type="solid", fgColor=TITLE_FILL)
+        cell.alignment = Alignment(horizontal="center")
+
+    row = header_row + 1
+    for category_name in category_names:
+        ws.cell(row, 2, category_name)
+        for idx, report in enumerate(reports):
+            _, category_total = report.category_totals.get(category_name, (0, 0.0))
+            ws.cell(row, 3 + idx, category_total)
+            ws.cell(row, 3 + idx).number_format = NUMFMT
+        ws.cell(row, grand_total_col, category_grand_totals[category_name])
+        ws.cell(row, grand_total_col).number_format = NUMFMT
+        row += 1
+
+    total_row = row
+    ws.cell(total_row, 2, "TOTAL")
+    for idx, report in enumerate(reports):
+        ws.cell(total_row, 3 + idx, report.total_salary)
+        ws.cell(total_row, 3 + idx).number_format = NUMFMT
+    ws.cell(total_row, grand_total_col, sum(category_grand_totals.values()))
+    ws.cell(total_row, grand_total_col).number_format = NUMFMT
+    for col_idx in range(2, grand_total_col + 1):
+        ws.cell(total_row, col_idx).font = Font(name="Arial", size=11, bold=True)
+        ws.cell(total_row, col_idx).fill = PatternFill(fill_type="solid", fgColor=LIGHT_FILL)
+
+    ws.freeze_panes = f"C{header_row + 1}"
+
+
 def build_workbook(reports: list[StoreReport], output_path: Path) -> None:
     workbook = openpyxl.Workbook()
     summary_ws = workbook.active
     summary_ws.title = "Salary Summary"
     write_summary_sheet(summary_ws, reports)
+
+    category_ws = workbook.create_sheet("Category Summary")
+    write_category_summary_sheet(category_ws, reports)
 
     for report in reports:
         ws = workbook.create_sheet(report.sheet_name)
